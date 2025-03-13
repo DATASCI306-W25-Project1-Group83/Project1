@@ -1,6 +1,6 @@
 ---
 title: "Project 1"
-author: "authors"
+author: "Hani Park, Daniel Birch, Alexander Miteza"
 output: html_document
 ---
 
