@@ -1,0 +1,383 @@
+---
+title: "Project 1"
+author: "authors"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+```
+
+## Overview
+
+In the `data` directory of this project you will find the file from a paper published in *Nature Energy* titled [Natural gas savings in Germany during the 2022 energy crisis](https://www.nature.com/articles/s41560-023-01260-5). Here is the abstract of the article:
+
+> Russia curbed its natural gas supply to Europe in 2021 and 2022, creating a grave energy crisis. This Article empirically estimates the crisis response of natural gas consumers in Germany—for decades, the largest export market for Russian gas. Using a multiple regression model, we estimate the response of small consumers, industry and power stations separately, controlling for the nonlinear temperature-heating relationship, seasonality and trends. We find significant and substantial gas savings for all consumer groups, but with differences in timing and size. For instance, industry started reducing consumption as early as September 2021, while small consumers saved substantially only since March 2022. Across all sectors, gas consumption during the second half of 2022 was 23% below the temperature-adjusted baseline. We discuss the drivers behind these savings and draw conclusions on their role in coping with the crisis.
+
+Your job in this project falls into two categories:
+
+1. A set of **tasks** that your group must complete exactly
+2. A set of **objectives** that are more general in their approach.
+
+## Tasks
+
+### Task 1
+
+* Load two files. To work in the console, use the `Session -> Set Working Directory -> To Source File Location`.
+    * Call the first table `daily`: "./data/natural_gas_germany_daily.csv"
+    * Call the second table `gas`: "./data/dutch_ttf_natural_gas.csv". Be sure to properly import the `Date` column.
+    * Demonstrate that these have been loaded by showing the number of rows and columns in each table.
+  
+```{r}
+# Load two files
+daily <- read_csv('./data/natural_gas_germany_daily.csv',
+                  col_types = cols(date = col_date(format = "%Y-%m-%d")))
+
+gas <- read_csv('./data/dutch_ttf_natural_gas.csv',
+                col_types = cols(Date = col_date(format = "%m/%d/%Y")))
+
+# Print the number of rows and columns of the datasets
+cat('Rows and columns in daily: ', nrow(daily), ncol(daily), sep = '\n')
+cat('Rows and columns in gas: ', nrow(gas), ncol(gas), sep = '\n')
+```
+  
+
+### Task 2
+
+* The data in `daily` are collected over days, with information on different types of natural gas consumption (`consumption_small`, `consumption_industry`, `consumption_power`). Provide summaries of typical values for each of these three types of consumption.
+
+```{r}
+summary(daily[, c('consumption_small', 'consumption_industry', 'consumption_power')])
+```
+
+
+### Task 3
+
+Answer some questions about the data in `daily`:
+
+* How many weeks do the data cover?
+```{r}
+start_date <- min(daily$date, na.rm = TRUE)
+end_date <- max(daily$date, na.rm = TRUE)
+
+num_weeks<- (end_date - start_date)/7
+
+cat("Number of weeks covered:", num_weeks, "\n")
+```
+
+
+* What is the percentage change in the `consumption_*` variables (that is the last day minus the first day divided by the first day)?
+```{r}
+# There are three 'consumption_*' columns
+percent_change <- daily %>%
+  summarise(across(starts_with('consumption_'), 
+                   ~ ((last(na.omit(.x)) - first(na.omit(.x))) / first(na.omit(.x))) * 100))
+
+percent_change
+```
+
+* What proportion of the days are marked as holidays?
+```{r}
+# proportion of '1' in the column 'holiday'
+mean(daily$holiday, na.rim = TRUE)
+```
+
+
+* For each month in each year, what was the year-month combination with the lowest median `consumption_power` value?
+```{r}
+# Create a new column called 'year_month'
+# Group by 'year_month' to find the 'year_month' with the lowest median 'computation power' value 
+year_month_with_median_consumption_power <- daily %>%
+  mutate(year_month = floor_date(date, "month")) %>%
+  group_by(year_month) %>%
+  summarise(median_consumption_power = median(consumption_power, na.rm = TRUE)) %>%
+  arrange(median_consumption_power) 
+
+year_month_with_median_consumption_power
+# This first row is a 'year_month' with the lowest median 'computation power'
+```
+
+   
+### Task 4
+
+* The original paper aggregated the data to monthly means for each consumption type in `daily` and the `Price` column of `gas` to produce the following image:<br/>
+![Original consumption by month graph](proj1fig1.png)<br/>
+Produce plots that show the same information that is presented in this plot. Your plots do not have to have the same colors or markings, but we should be able to use them to compare the trends for the three price variables. 
+
+
+
+
+```{r}
+# Step 1. Calculate monthly means
+# Monthly consumption
+monthly_consumption <- daily %>%
+  mutate(year_month = floor_date(date, "month")) %>%
+  group_by(year_month) %>%
+  summarise(
+    consumption_small = mean(consumption_small, na.rm = TRUE),
+    consumption_industry = mean(consumption_industry, na.rm = TRUE),
+    consumption_power = mean(consumption_power, na.rm = TRUE)
+  )
+
+monthly_consumption
+
+# Monthly gas price
+monthly_gas_price <- gas %>%
+  mutate(year_month = floor_date(Date, "month")) %>%
+  group_by(year_month) %>%
+  summarise(mean_price = mean(Price, na.rm = TRUE))
+
+monthly_gas_price 
+
+# Step 2. Plot
+# Monthly consumption
+p1 <- ggplot(monthly_consumption, aes(x = year_month)) + 
+  geom_line(aes(y = consumption_small, color = "Small Consumers"), size = 1) +
+  geom_line(aes(y = consumption_industry, color = "Industry"), size = 1) +
+  geom_line(aes(y = consumption_power, color = "Power Stations"), size = 1) +
+  labs(title = "Monthly Average Natural Gas Consumption",
+       x = "Year_Month", 
+       y = "Consumption (MWh)") +
+  theme_minimal() +
+  scale_color_manual(values = c("Small Consumers" = "red", "Industry" = "green", "Power Stations" = "blue")) +
+  scale_x_date(date_labels = "%Y-%m")
+
+# Monthly gas price
+p2 <- ggplot(monthly_gas_price, aes(x = year_month, y = mean_price)) +
+  geom_line(color = "orange", size = 1) +
+  labs(title = "Monthly Mean Gas Price Trends",
+       x = "Year_Month", 
+       y = "Mean Gas Price") +
+  theme_minimal() +
+  scale_x_date(date_labels = "%Y-%m") 
+
+p1
+p2
+
+```
+
+
+### Task 5
+
+* Write a predicate function that returns true if any value in vector is missing. Use this function to find columns with missing values in the `daily` column. Create a plot or table that shows how often patterns of missingness occur: are all of the missing values in the same rows or are the various columns missing data in different ways?
+
+```{r}
+# Define a function
+any_missing <- function(x) {
+  any(is.na(x))
+}
+```
+
+```{r}
+# Find columns with missing values in the `daily`
+missing_cols <- names(daily)[sapply(daily, any_missing)]
+print(missing_cols)
+```
+
+```{r}
+# Count missing values per row
+daily <- daily %>%
+  mutate(missing_count = rowSums(is.na(.)))
+
+# Create a summary table with percentages
+missing_table <- daily %>%
+  count(missing_count) %>%
+  arrange(missing_count)
+
+print(missing_table)
+```
+
+```{r}
+ggplot(missing_table, aes(x = missing_count, y = n)) +
+  geom_col(fill = "pink") +
+  labs(title = "Distribution of Missing Value Counts per Row",
+       x = "Number of Missing Values", 
+       y = "Number of Rows") +
+  theme_minimal()
+```
+
+### Task 6
+
+* Limit the `gas` table to days where the price exceeded the yearly median. Use the concept of [circular means](https://en.wikipedia.org/wiki/Circular_mean) to compute the average day of the year when price exceeds the yearly median price. The `yday` function will likely be useful here. 
+
+
+```{r}
+yearly_median = median(gas$Price, na.rm = TRUE)
+
+filtered_gas = gas %>% filter(Price > yearly_median) %>%
+  mutate(day_of_year = yday(Date))
+```
+
+```{r}
+angles <- filtered_gas$day_of_year * (2 * pi / 365)
+
+mean_sin <- mean(sin(angles))
+mean_cos <- mean(cos(angles))
+
+circular_mean_angle <- atan2(mean_sin, mean_cos)
+
+circular_mean_day <- (circular_mean_angle * 365 / (2 * pi)) %% 365
+circular_mean_day <- ifelse(circular_mean_day < 1, circular_mean_day + 365, circular_mean_day)
+
+circular_mean_day
+```
+
+
+### Task 7
+
+* Using the cut function, create two nominal variables from quantitative data in the `daily` dataset. Use these groups to summarize the data. Use arrange to show the smallest or largest values in these comparisons.
+
+```{r}
+cut_daily = daily %>%
+  mutate(wages_factor = cut(wages, breaks = 3, labels = c("low", "medium", "high"),  include.lowest = TRUE),
+         consumption_power_factor = cut(consumption_power, breaks = 3, labels = c("low", "medium", "high"),  include.lowest = TRUE))
+
+summary_daily = cut_daily %>%
+  group_by(wages_factor, consumption_power_factor) %>%
+  summarize(mean_heating_profiles = mean(heating_profiles, na.rm = TRUE),
+            mean_consumption_small = mean(consumption_small, na.rm = TRUE),
+            mean_consumption_industry = mean(consumption_industry, na.rm = TRUE))
+
+summary_daily %>% arrange(mean_heating_profiles)
+summary_daily %>% arrange(mean_consumption_small)
+summary_daily %>% arrange(mean_consumption_industry)
+
+summary_daily %>% arrange(desc(mean_heating_profiles))
+summary_daily %>% arrange(desc(mean_consumption_small))
+summary_daily %>% arrange(desc(mean_consumption_industry))
+```
+
+
+
+### Task 8
+
+* There are several variables that pull out data by different industry (the `_idx` columns). Create a table for these columns using `select` and the `ends_with` function. Provide two different plots that show of the relations between these variables (you do not need to have all variables in each plot).
+
+```{r}
+idx_table <- daily %>%
+  select(ends_with("_idx"))
+
+ggplot(daily, aes(x = hospitality_idx, y = retail_idx)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Relationship Between Hospitality and Retail Indices",
+       x = "Hospitality Index",
+       y = "Retail Index")
+```
+```{r}
+ggplot(daily, aes(x = hospitality_idx, y = manufacturing_idx)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Relationship Between Hospitality and Manufacturing Indices",
+       x = "Hospitality Index",
+       y = "Manufacturing Index")
+
+```
+
+
+
+## Objectives
+
+### Objective 1
+
+* Produce at least five more figures. For each figure, write a brief caption explaining the plot and what you have learned from the plot. Each figure should attempt to provide new insight into the data set not included elsewhere
+    * A marginal distribution
+    * A joint distribution
+    * A plot of a summary measure such as a conditional mean
+    * A plot using `facet_wrap` or `facet_grid`
+    * A plot that shows seasonal effects before the crisis (September 2021 until October 2022)
+
+```{r}
+#marginal distribution of consumption power
+ggplot(daily, aes(x = consumption_power)) +
+  geom_histogram(bins = 10, fill = "blue", color = "black") +
+  labs(title = "Distribution of Consumption Power", x = "Consumption Power", y = "Count")
+
+```
+We can see in the histogram that consumption power is right skewed and ranges from roughly 0 to 1.
+
+```{r}
+#joint distribution
+ggplot(daily, aes(x = temperature, y = solar_radiation)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "Relationship Betwee Temperature and Solar Radiation", x = "Temperature", y = "Solar Radiation")
+```
+This scatterplot between temperature and solar radiation shows a pretty clear positive relationship between the two variables.
+
+```{r}
+#conditional mean of consumption power by weekday
+daily$weekday <- factor(daily$weekday, 
+                        levels = c("Monday", "Tuesday", "Wednesday", "Thursday", 
+                                   "Friday", "Saturday", "Sunday"))
+
+ggplot(daily, aes(x = weekday, y = consumption_power, fill = weekday)) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "Power Consumption Distribution by Weekday",
+       x = "Weekday", y = "Power Consumption")
+
+```
+This boxplot shows that power consumption is highest on weekdays and lowest on weekends.
+
+```{r}
+#facet_wrap
+daily <- daily %>%
+  mutate(temp_category = cut(temperature, breaks = 5,
+                             labels = c("Very Cold", "Cold", "Mild", "Warm", "Hot")))
+
+ggplot(daily, aes(x = temperature, y = heating_profiles, color = temp_category)) +
+  geom_point(alpha = 0.6) +
+  facet_wrap(~temp_category, scales = "free") +
+  labs(title = "Temperature vs. Heating Profiles, Faceted by Temperature Category",
+       x = "Temperature", y = "Heating Profiles") 
+```
+From the facet wrap, we can see that the distributions of temperature vs. heating profiles are pretty similar across all levels of temperature, apart from a slight sign that hotter temperature groups have a steeper downward curve in the distribution.
+
+```{r}
+#seasonal effects
+daily %>%
+  filter(date >= "2021-09-01" & date <= "2022-10-31") %>%
+  mutate(month = floor_date(date, "month")) %>%
+  group_by(month) %>%
+  summarize(avg_consumption = mean(consumption_small, na.rm = TRUE)) %>%
+  ggplot(aes(x = month, y = avg_consumption)) +
+  geom_line(color = "purple", size = 1) +
+  geom_point(color = "black") +
+  labs(title = "Seasonal Trend in Small Consumption (Pre-Crisis: Sep 2021 - Oct 2022)",
+       x = "Month", y = "Average Small Consumption")
+```
+According to the graph, small consumption is highest in the winter months and lowest in the summer months.
+
+
+### Objective 2
+
+* Compare and contrast holidays and non-holidays for household energy consumption. Select 3 ways of comparing these groups. Provide at least one graph.
+
+```{r}
+#summaries
+daily %>%
+  group_by(holiday) %>%
+  summarize(
+    mean_consumption = mean(consumption_small, na.rm = TRUE),
+    median_consumption = median(consumption_small, na.rm = TRUE),
+    sd_consumption = sd(consumption_small, na.rm = TRUE),
+    count = n())
+```
+
+```{r}
+ggplot(daily, aes(x = as.factor(holiday), y = consumption_small, fill = as.factor(holiday))) +
+  geom_boxplot(alpha = 0.7) +
+  labs(title = "Household Energy Consumption: Holidays vs. Non-Holidays",
+       x = "Holiday (1 = Yes, 0 = No)", 
+       y = "Household Energy Consumption")
+```
+
+```{r}
+ggplot(daily, aes(x = date, y = consumption_small, color = as.factor(holiday))) +
+  geom_line(alpha = 0.8) +
+  labs(title = "Household Energy Consumption Over Time: Holidays vs. Non-Holidays",
+       x = "Date", y = "Household Energy Consumption", color = "Holiday")
+```
+
