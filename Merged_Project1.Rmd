@@ -338,17 +338,17 @@ From the facet wrap, we can see that the distributions of temperature vs. heatin
 ```{r}
 #seasonal effects
 daily %>%
-  filter(date >= "2021-09-01" & date <= "2022-10-31") %>%
+  filter(date < "2021-09-01" & date >= "2018-01-01") %>%
   mutate(month = floor_date(date, "month")) %>%
   group_by(month) %>%
   summarize(avg_consumption = mean(consumption_small, na.rm = TRUE)) %>%
   ggplot(aes(x = month, y = avg_consumption)) +
   geom_line(color = "purple", size = 1) +
   geom_point(color = "black") +
-  labs(title = "Seasonal Trend in Small Consumption (Pre-Crisis: Sep 2021 - Oct 2022)",
-       x = "Month", y = "Average Small Consumption")
+  labs(title = "Seasonal Trend in Small Consumption Pre-Crisis",
+       x = "Date", y = "Average Small Consumption")
 ```
-According to the graph, small consumption is highest in the winter months and lowest in the summer months.
+According to the graph, small consumption was highest in the winter and lowest in the summer before the crisis.
 
 
 ### Objective 2
