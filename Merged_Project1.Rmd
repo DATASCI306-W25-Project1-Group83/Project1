@@ -303,7 +303,7 @@ We can see in the histogram that consumption power is right skewed and ranges fr
 ggplot(daily, aes(x = temperature, y = solar_radiation)) +
   geom_point(color = "blue") +
   geom_smooth(method = "lm", se = FALSE, color = "red") +
-  labs(title = "Relationship Betwee Temperature and Solar Radiation", x = "Temperature", y = "Solar Radiation")
+  labs(title = "Relationship Between Temperature and Solar Radiation", x = "Temperature", y = "Solar Radiation")
 ```
 This scatterplot between temperature and solar radiation shows a pretty clear positive relationship between the two variables.
 
@@ -380,4 +380,159 @@ ggplot(daily, aes(x = date, y = consumption_small, color = as.factor(holiday))) 
   labs(title = "Household Energy Consumption Over Time: Holidays vs. Non-Holidays",
        x = "Date", y = "Household Energy Consumption", color = "Holiday")
 ```
+
+### Objective 3
+
+* According to the paper, the gas crisis occurred between September 2021 until October 2022. Compare this period with the periods before and after on household and industrial consumption. Write a paragraph explaining your findings.
+
+```{r}
+gas_germany <- read_csv("data/natural_gas_germany_daily.csv")
+
+gas_germany <- gas_germany |>
+  mutate(period = case_when(
+    date < ymd("2021-09-01") ~ "Before Crisis",
+    date >= ymd("2021-09-01") & date <= ymd("2022-10-01") ~ "During Crisis",
+    date > ymd("2022-10-01") ~ "After Crisis"
+  ))
+
+gas_germany$period <- factor(gas_germany$period, levels = c("Before Crisis", "During Crisis", "After Crisis"))
+
+# Plots
+gas_germany |>
+  ggplot(aes(x = period, y = consumption_small)) +
+  geom_boxplot() +
+  labs(title = "Household Consumption Before, During, and After the Crisis",
+       x = "Period",
+       y = "Household Consumption")
+
+gas_germany |>
+  ggplot(aes(x = period, y = consumption_industry)) +
+  geom_boxplot() +
+  labs(title = "Industrial Consumption Before, During, and After the Crisis",
+       x = "Period",
+       y = "Industrial Consumption")
+
+```
+
+#### ANALYSIS
+
+* When studying the effects of the crisis on the household and the firm, there are clear differences visible. For the household, numbers did not change much going from before to during the war, save for the maximum value of gas consumption being reduced. However, after the crisis, the upper and lower quartiles tighten in on a slightly raised mean. On the other hand, industry displayed a stark contrast with a clear downward trend throughout all phases of the crisis. The mean amount of consumption and upper/lower quartiles consistently fell-- the only exception being a increased range of variability during the crisis.
+
+
+### Objective 4
+
+* Explore the [documentation for ggplot](https://ggplot2.tidyverse.org/). Select one geometery and one `stat_` function we have not used before or use an option to a previously used geometry/stat with a new option. Write a short paragraph explaining what the plots show. 
+
+```{r}
+library(hexbin)
+
+ggplot(gas_germany, aes(x = temperature, y = solar_radiation)) +
+  geom_tile(aes(fill = consumption_power)) +
+  stat_summary_hex(aes(z = consumption_power, fill = after_stat(value)), fun = mean, bins = 30, alpha = 0.9) +
+  labs(title = "Solar Radiation and Temperature with Power Consumption",
+       x = "Temperature",
+       y = "Solar Radiation",
+       fill = "Power Consumption") +
+  theme_minimal()
+
+```
+```{r}
+library(viridis)
+
+gas_germany <- read_csv("data/natural_gas_germany_daily.csv")
+
+ggplot(gas_germany, aes(x = temperature, y = solar_radiation)) +
+  geom_bin2d(aes(fill = after_stat(count)), bins = 30) +
+  scale_fill_viridis_c() +
+  labs(title = "2D Histogram of Solar Radiation and Temperature",
+       x = "Temperature",
+       y = "Solar Radiation",
+       fill = "Count") +
+  theme_minimal()
+```
+
+
+#### ANALYSIS
+
+* The first plot explores a variation of the `stat_summary` function, using `stat_summary_hex`. This function is relatively self explanatory, calculating summary statistics in hexagonal bins for the chosen data. The chosen plot shows the relationship between temperature and solar radiation with respect to power consumption. The second plot uses the `geom_bin2d` function-- a useful alternative to `geom_tile`-- to create a 2D histogram of solar radiation and temperature. The plot color is associated with the count of observations in each bin, with the scale and palette being from the `viridis` package.
+
+
+### Objective 4
+
+* Investigate solar radiation's marginal distribution and also it's relationship with temperature.
+
+```{r}
+gas_germany <- read_csv("data/natural_gas_germany_daily.csv")
+
+# Marginal distribution
+gas_germany |>
+  ggplot(aes(x = solar_radiation)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Solar Radiation's Marginal Distribution",
+       x = "Solar Radiation",
+       y = "Frequency")
+
+# Relationship with temperature
+gas_germany |>
+  ggplot(aes(x = temperature, y = solar_radiation)) +
+  geom_point() +
+  labs(title = "Solar Radiation's Relationship with Temperature",
+       x = "Temperature",
+       y = "Solar Radiation")
+
+```
+
+#### ANALYSIS
+
+* As implicitly explored in previous objectives, temperature and solar radiation have a relatively strong positive relationship. There exist some observations of higher solar radiation at lower temperatures, and higher temperatures at somewhat low radiation levels, hence the "relatively strong" relationship. As for the marginal distribution of solar radiation, it is right-skewed, with most of the observations falling in the lower range of solar radiation.
+
+
+### Objective 5
+
+* Use `group_by` to summarize by a new feature of this data set not otherwise discussed in the tasks or objectives. What have you learned with these investigation?
+
+```{r}
+gas_germany <- read_csv("data/natural_gas_germany_daily.csv")
+
+gas_germany <- gas_germany |>
+  mutate(christmas_period = case_when(
+    month(date) == 12 & day(date) >= 20 ~ "Christmas",
+    TRUE ~ "Not Christmas"
+  ))
+
+gas_germany |>
+  group_by(christmas_period) |>
+  summarise(mean_consumption_power = mean(consumption_power, na.rm = TRUE),
+            mean_consumption_small = mean(consumption_small, na.rm = TRUE),
+            mean_consumption_industry = mean(consumption_industry, na.rm = TRUE))
+
+```
+
+#### ANALYSIS
+
+* I have chosen to study the trends of power, household, and industrial consumption through whether or not it is Christmas time in Germany. Christmas is a very important holiday to Germans, and it would not be surprising if there was a causal interaction between the increased household and industrial gas consumption during the holiday season. There is the issue of weather, as Germany during December gets cold, and thus would assumedly consume more natural gas for heating. The power sector's consumption is relatively stable throughout the year, which throws this assumption into question. This could be due to the fact that the data is being skewed by the energy crisis, and thus does not give a typical representation of Germany's Christmas and non-Christmas gas consumption.
+
+### Objective 6
+
+* Based on your exploration of the data, suggest three questions that could be asked from these data or additional data that you can imagine. Be sure to explain why the previous plots or calculations indicates that this would be an interesting our useful exploration.
+
+##### QUESTIONS
+
+* The data presented only covers about 313 weeks, or roughly 6 years. What observations could be made if the data was extended to cover until 2025, as the Russian-Ukrainian war continues to rage on? Objective 3 showed that the crisis had a significant impact on industrial consumption, but what about the household sector? Would the trends observed in the data continue, or would they change as the crisis continues to evolve?
+
+* Germany's Chancellor-in-waiting, Friedrich Merz, is a strong proponent in nuclear energy, and has pushed for a renaissance in the energy source by reigniting the pre-existing plants from before Fukushima's disaster in 2011. In the time between now and then, Germany had replaced this power with wind and solar, along with a hefty amount of natural gas. We have already established the relationship between solar radiation and temperature graphically; since increased levels of radiation are associated with increased energy output from solar panels, how might the energy consumption pie change if nuclear was reintroduced, as temperature varies?
+
+* From task 8, there is a somewhat muddied relationship between the household and manufacturing indices, with a positive correlation prevailing. However, how might this relationship look when the data is split by before, during, and after the energy crisis? Would clearer trends surface that could be used to predict future German index behavior?
+
+### Objective 7
+
+* Write an abstract for your project. Briefly explain what you did, what you found, and why a potential reader should be interested in your research.
+
+#### ABSTRACT
+
+* This project explores the effects of the Russian-Ukrainian war and the accommodating European energy crisis on Germany's natural gas consumption. Using data from Nature Energy's article on natural gas savings, we analyzed trends in household, industrial, and power station gas consumption, finding that all sectors experienced significant and substantial reductions in consumption during the crisis, with differences in timing and size. For instance, industry started reducing consumption very early into the crisis, while households only did afterwards. Holidays and non-holidays was another area of interest for households, finding that there was not much difference in energy consumption between the two periods. Seasonal effects like this were areas of interest in this project, such as the strong positive relationship found between solar radiation and temperature, and how temperature affected energy consumption tendencies throughout the year. We also compared the periods before, during, and after the crisis on household and industrial consumption, finding that the household consumption only started to change after the crisis, meanwhile industry displayed a stark downward trend throughout all phases of the crisis. We explored the relationship between varied indices, showing weak relationships between hospitality and either retail or manufacturing sectors. The research presented in this project is important because it provides insight into how Germany dealt with the energy crisis through their different sectors. Understanding how power and industrial sectors interact with small consumers is essential to knowing one's place in an economy, especially during a crisis. The data presented in this project is a small snapshot of a much larger picture, and the questions posed at the end provide a possible roadmap for future research into the crisis and its effects on Germany's energy consumption.
+
+
+
+
 
